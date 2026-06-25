@@ -124,3 +124,34 @@ def generate_openrouter_drafts(
         f"JSON:\n{json.dumps(payload, ensure_ascii=False, indent=2, default=str)}"
     )
     return _openrouter_chat(api_key=api_key, model=model, system=system, user=user, max_tokens=1800, temperature=0.25)
+
+
+
+def generate_openrouter_agent6_answer(
+    question: str,
+    agent6_context: Dict[str, Any],
+    api_key: Optional[str] = None,
+    model: str = DEFAULT_MODEL,
+) -> str:
+    """Répond via OpenRouter à partir du contexte prioritaire des Agents 1 à 5."""
+    system = (
+        "Tu es l'Agent 6, chatbot d'une War Room IA de communication de crise. "
+        "Tu réponds en français clair, professionnel et prudent. "
+        "Tu bases ta réponse uniquement sur le CONTEXTE_JSON issu des Agents 1 à 5. "
+        "Tu n'inventes aucun chiffre, aucune source et aucune preuve. "
+        "Si une information n'est pas disponible dans le contexte, dis-le clairement. "
+        "Les signaux de coordination ne doivent jamais être présentés comme une preuve de bots. "
+        "Tu rappelles que l'IA assiste la cellule de crise et que l'humain valide les décisions."
+    )
+    user = (
+        "Question utilisateur :\n"
+        f"{question}\n\n"
+        "Réponds avec cette structure :\n"
+        "1) Réponse directe\n"
+        "2) Éléments issus des agents utilisés\n"
+        "3) Limites / prudence\n"
+        "4) Action recommandée si utile\n\n"
+        "CONTEXTE_JSON :\n"
+        f"{json.dumps(agent6_context, ensure_ascii=False, indent=2, default=str)}"
+    )
+    return _openrouter_chat(api_key=api_key, model=model, system=system, user=user, max_tokens=1800, temperature=0.2)

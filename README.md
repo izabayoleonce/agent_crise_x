@@ -125,3 +125,18 @@ Si Streamlit garde une ancienne erreur en cache, arrête l’app, supprime `__py
 Get-ChildItem -Recurse -Directory -Filter __pycache__ | Remove-Item -Recurse -Force
 streamlit run app.py
 ```
+
+
+
+## Agent 6 — Chatbot War Room
+
+La version finale ajoute un **Agent 6 conversationnel**. Il permet de poser des questions libres comme :
+
+- Pourquoi le pic principal est-il important ?
+- Quels narratifs sont les plus risqués ?
+- Y a-t-il des signaux de coordination ?
+- Quelle stratégie faut-il adopter ?
+- Rédige un post X prudent.
+- Quelles sont les limites de l'analyse ?
+
+L'Agent 6 répond en priorité à partir des sorties des Agents 1 à 5. OpenRouter est optionnel : sans clé API, une réponse déterministe est produite ; avec la clé, le LLM reformule la réponse de manière plus professionnelle à partir du contexte JSON vérifié.

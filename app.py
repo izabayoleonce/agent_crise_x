@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-CrisisAI War Room — Agents 1, 2, 3, 4, 5
+CrisisAI War Room — Agents 1, 2, 3, 4, 5, 6
 Déploiement : streamlit run app.py
 """
 
@@ -45,8 +45,13 @@ from src.agent45_core import (
     agent45_export_files,
     build_crisis_context,
 )
+from src.agent6_core import (
+    AgentChatbotCrise,
+    build_agent6_context,
+)
 from src.llm_clients import (
     DEFAULT_MODEL,
+    generate_openrouter_agent6_answer,
     generate_openrouter_brief,
     generate_openrouter_drafts,
     generate_openrouter_strategy,
@@ -61,7 +66,7 @@ def get_streamlit_secret(name: str, default: str = "") -> str:
 
 
 st.set_page_config(
-    page_title="CrisisAI War Room — Agents 1 à 5",
+    page_title="CrisisAI War Room — Agents 1 à 6",
     page_icon="🚨",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -250,7 +255,7 @@ def build_strategy_safe(strategist, result, **kwargs):
 # -----------------------------------------------------------------------------
 
 st.sidebar.title("🚨 CrisisAI War Room")
-st.sidebar.caption("Agents 1 à 5 — Diagnostic → Narratifs → Propagation → Stratégie → Messages")
+st.sidebar.caption("Agents 1 à 6 — Diagnostic → Narratifs → Propagation → Stratégie → Messages → Chatbot")
 
 uploaded = st.sidebar.file_uploader(
     "Importer le corpus X/Twitter",
@@ -275,9 +280,9 @@ st.sidebar.caption("Tu peux aussi définir OPENROUTER_API_KEY dans les secrets S
 # Header
 # -----------------------------------------------------------------------------
 
-st.markdown('<div class="big-title">CrisisAI War Room — Agents 1 à 5</div>', unsafe_allow_html=True)
+st.markdown('<div class="big-title">CrisisAI War Room — Agents 1 à 6</div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="subtitle">Salle de crise IA complète : diagnostic, narratifs, propagation, stratégie, messages et garde-fous.</div>',
+    '<div class="subtitle">Salle de crise IA complète : diagnostic, narratifs, propagation, stratégie, messages, garde-fous et chatbot.</div>',
     unsafe_allow_html=True,
 )
 
@@ -286,7 +291,7 @@ if uploaded is None:
         """
         <div class="warning-box">
         <b>Commence ici :</b> importe ton fichier <code>data.xlsx</code> ou un CSV équivalent dans la barre latérale.
-        L'application va produire le pipeline complet : Agent 1 → Agent 2 → Agent 3 → Agent 4 → Agent 5.
+        L'application va produire le pipeline complet : Agent 1 → Agent 2 → Agent 3 → Agent 4 → Agent 5 → Agent 6.
         </div>
         """,
         unsafe_allow_html=True,
@@ -341,7 +346,7 @@ st.caption(f"Période couverte : {kpis['debut']} → {kpis['fin']}")
 # Tabs
 # -----------------------------------------------------------------------------
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
     "📊 Vue globale",
     "🔥 Pics détectés",
     "🤖 Agent 1 — Diagnostic",
@@ -350,6 +355,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     "🧭 Agent 4 — Stratégie",
     "✍️ Agent 5 — Rédaction",
     "🔗 Orchestration Top 1",
+    "💬 Agent 6 — Chatbot",
     "📦 Exports",
     "🎤 Pitch jury",
 ])
@@ -432,6 +438,7 @@ with tab3:
     st.session_state.pop("agent3_report", None)
     st.session_state.pop("agent4_strategy", None)
     st.session_state.pop("agent5_drafts", None)
+    st.session_state.pop("agent6_history", None)
 
     score = result["crisis_velocity_score"]
     score_col, brief_col = st.columns([0.35, 0.65])
@@ -665,6 +672,8 @@ with tab8:
         Agent 4 — Stratégie : posture, plan 0–24h, risques, déclencheurs
               ↓
         Agent 5 — Rédaction : messages + garde-fou + validation humaine
+              ↓
+        Agent 6 — Chatbot : répond aux questions à partir des sorties Agents 1 à 5
         ```
         """
     )
@@ -682,9 +691,135 @@ with tab8:
         st.markdown(strategy["markdown"])
         st.markdown(drafts["markdown"])
 
-    st.success("Démo prête : on montre que l'IA ne publie pas. Elle observe, priorise, recommande, rédige, puis l'humain valide.")
+    st.success("Démo prête : l'IA observe, cartographie, mesure, recommande, rédige, répond aux questions, puis l'humain valide.")
 
 with tab9:
+    st.subheader("Agent 6 — Chatbot connecté aux résultats")
+    st.info(
+        "Pose n'importe quelle question sur la crise, les chiffres, les narratifs, la propagation, "
+        "la stratégie ou les messages. L'Agent 6 répond en priorité avec les sorties des Agents 1 à 5."
+    )
+
+    result = ensure_active_result(agent, peaks_d, top_n)
+    agent2_report = ensure_agent2(result, top_n)
+    agent3_report = ensure_agent3(result, top_n)
+
+    if "agent4_strategy" not in st.session_state:
+        st.session_state["agent4_strategy"] = build_strategy_safe(
+            AgentStrategieRiposte(),
+            result,
+            agent2_report=agent2_report,
+            agent3_report=agent3_report,
+        )
+    strategy = st.session_state["agent4_strategy"]
+
+    if "agent5_drafts" not in st.session_state:
+        st.session_state["agent5_drafts"] = AgentRedacteurGardeFou().generate_pack(result, strategy)
+    draft_pack = st.session_state["agent5_drafts"]
+
+    agent6_context = build_agent6_context(
+        result,
+        agent2_report=agent2_report,
+        agent3_report=agent3_report,
+        strategy=strategy,
+        draft_pack=draft_pack,
+    )
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.metric("Base prioritaire", "Agents 1 à 5")
+    with c2:
+        st.metric("Mode", "LLM OpenRouter" if use_openrouter else "Déterministe")
+    with c3:
+        st.metric("Validation", "Humaine obligatoire")
+
+    with st.expander("Questions rapides", expanded=True):
+        qcols = st.columns(3)
+        quick_questions = [
+            "Pourquoi le pic principal est-il important ?",
+            "Quels narratifs dominent et lesquels sont les plus risqués ?",
+            "Y a-t-il des signaux de coordination ou de copier-coller ?",
+            "Quelle stratégie de réponse recommandes-tu ?",
+            "Rédige un post X prudent pour le CNC.",
+            "Quelles sont les limites de notre analyse ?",
+        ]
+        for i, qq in enumerate(quick_questions):
+            if qcols[i % 3].button(qq, key=f"agent6_quick_{i}"):
+                st.session_state["agent6_pending_question"] = qq
+
+    if "agent6_history" not in st.session_state:
+        st.session_state["agent6_history"] = []
+
+    default_q = st.session_state.pop("agent6_pending_question", "")
+    question = st.text_area(
+        "Ta question à l'Agent 6",
+        value=default_q,
+        placeholder="Exemple : Explique-moi pourquoi l'angle argent public est dangereux pour le CNC.",
+        height=90,
+    )
+
+    col_send, col_clear = st.columns([1, 1])
+    ask = col_send.button("💬 Poser la question", type="primary")
+    clear = col_clear.button("🧹 Vider la conversation")
+    if clear:
+        st.session_state["agent6_history"] = []
+        st.rerun()
+
+    if ask and question.strip():
+        bot = AgentChatbotCrise()
+        mode = "déterministe"
+        try:
+            if use_openrouter:
+                api_key = get_api_key()
+                with st.spinner("Agent 6 interroge OpenRouter à partir des résultats Agents 1 à 5..."):
+                    answer = generate_openrouter_agent6_answer(
+                        question,
+                        agent6_context,
+                        api_key=api_key,
+                        model=openrouter_model,
+                    )
+                mode = "OpenRouter"
+                sources = ["Agents 1 à 5 via contexte JSON"]
+            else:
+                pack = bot.answer_deterministic(question, agent6_context)
+                answer = pack["answer"]
+                sources = pack.get("sources", [])
+        except Exception as e:
+            st.warning(f"OpenRouter indisponible ou erreur LLM. Réponse déterministe utilisée. Détail : {e}")
+            pack = bot.answer_deterministic(question, agent6_context)
+            answer = pack["answer"]
+            sources = pack.get("sources", [])
+            mode = "déterministe fallback"
+
+        st.session_state["agent6_history"].append({
+            "question": question.strip(),
+            "answer": answer,
+            "mode": mode,
+            "sources": sources,
+        })
+
+    st.markdown("### Conversation")
+    if not st.session_state["agent6_history"]:
+        st.caption("Aucune question posée pour l'instant.")
+    for i, turn in enumerate(st.session_state["agent6_history"], start=1):
+        with st.chat_message("user"):
+            st.markdown(turn["question"])
+        with st.chat_message("assistant"):
+            st.caption(f"Mode : {turn.get('mode', 'n/a')} | Sources : {', '.join(turn.get('sources', []))}")
+            st.markdown(turn["answer"])
+
+    if st.session_state["agent6_history"]:
+        conv_md = "\n\n".join(
+            [f"## Question {i}\n{t['question']}\n\n### Réponse\n{t['answer']}" for i, t in enumerate(st.session_state["agent6_history"], start=1)]
+        )
+        st.download_button(
+            "⬇️ Télécharger la conversation Agent 6 (.md)",
+            data=conv_md.encode("utf-8"),
+            file_name="conversation_agent6_chatbot.md",
+            mime="text/markdown",
+        )
+
+with tab10:
     st.subheader("Exports prêts pour slides / GitHub / Jour 3")
     result = ensure_active_result(agent, peaks_d, top_n)
     agent2_report = st.session_state.get("agent2_report")
@@ -696,12 +831,20 @@ with tab9:
     files.update(result_to_export_files(result, df, prefix="agent1_streamlit"))
     files.update(agent23_export_files(agent2_report, agent3_report))
     files.update(agent45_export_files(strategy, draft_pack))
+    if st.session_state.get("agent6_history"):
+        conv_md = "\n\n".join(
+            [
+                f"## Question {i}\n{t['question']}\n\n### Réponse\n{t['answer']}"
+                for i, t in enumerate(st.session_state["agent6_history"], start=1)
+            ]
+        )
+        files["agent6_conversation.md"] = conv_md.encode("utf-8")
 
     zip_bytes = make_agent1_zip(files)
     st.download_button(
-        "⬇️ Télécharger tous les exports Agents 1-5 (.zip)",
+        "⬇️ Télécharger tous les exports Agents 1-6 (.zip)",
         data=zip_bytes,
-        file_name="exports_crisisai_agents_1_5.zip",
+        file_name="exports_crisisai_agents_1_6.zip",
         mime="application/zip",
     )
     st.markdown("Fichiers inclus :")
@@ -723,12 +866,12 @@ with tab9:
         mime="text/csv",
     )
 
-with tab10:
+with tab11:
     st.subheader("Démo orale prête pour l'animateur / jury")
     st.markdown(
         """
         ### Phrase d'ouverture
-        > Nous n'avons pas construit un simple dashboard. Nous avons construit une mini War Room IA : elle observe la crise, cartographie les narratifs, mesure la propagation, propose une stratégie et rédige des messages avec garde-fous humains.
+        > Nous n'avons pas construit un simple dashboard. Nous avons construit une mini War Room IA : elle observe la crise, cartographie les narratifs, mesure la propagation, propose une stratégie, rédige des messages et répond aux questions grâce à un chatbot branché sur les sorties des agents.
 
         ### Démo recommandée
         1. Importer `data.xlsx`.
@@ -738,7 +881,8 @@ with tab10:
         5. Ouvrir **Agent 3** : montrer le score de coordination prudente et rappeler que ce n'est pas une accusation de bots.
         6. Ouvrir **Agent 4** : montrer la stratégie 0–24h.
         7. Ouvrir **Agent 5** : montrer le post X, le communiqué, la FAQ et le garde-fou.
-        8. Finir par **Orchestration Top 1**.
+        8. Ouvrir **Agent 6** : poser une question libre, par exemple « Que doit-on faire maintenant ? ».
+        9. Finir par **Orchestration Top 1**.
 
         ### Phrase forte
         > Nos calculs sont faits par Python pour éviter l'hallucination. Le LLM est optionnel : il sert seulement à reformuler les sorties vérifiées en langage professionnel. La décision reste humaine.
