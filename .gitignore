@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.env
+.streamlit/secrets.toml
+**/.streamlit/secrets.toml
+outputs/
+agent1_outputs/
+*.zip
+.DS_Store
+.ipynb_checkpoints/
+data/*
+!data/.gitkeep

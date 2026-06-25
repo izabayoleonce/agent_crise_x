@@ -1,0 +1,10 @@
+CrisisAI War Room — version finale corrigée
+
+Pipeline : Agent 1 → Agent 2 → Agent 3 → Agent 4 → Agent 5
+
+Correction importante :
+- app.py utilise build_strategy_safe()
+- src/agent45_core.py accepte agent2_report et agent3_report dans AgentStrategieRiposte.build_strategy()
+- aucun secret OpenRouter réel n’est inclus
+
+Déploiement : streamlit run app.py
