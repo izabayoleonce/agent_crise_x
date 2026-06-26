@@ -75,7 +75,7 @@ st.set_page_config(
 
 CUSTOM_CSS = """
 <style>
-.block-container {padding-top: 1.4rem; padding-bottom: 2rem;}
+.block-container {padding-top: 1.9rem; padding-bottom: 2rem;}
 .metric-card {
     border: 1px solid rgba(128,128,128,0.20);
     border-radius: 18px;
@@ -86,7 +86,7 @@ CUSTOM_CSS = """
 .metric-title {font-size: 0.85rem; color: #777; margin-bottom: 0.25rem;}
 .metric-value {font-size: 1.75rem; font-weight: 800; line-height: 1.2;}
 .metric-note {font-size: 0.8rem; color: #777; margin-top: 0.3rem;}
-.big-title {font-size: 2.1rem; font-weight: 900; margin-bottom: 0.1rem;}
+.big-title {font-size: 2.1rem; font-weight: 900;}
 .subtitle {color: #777; margin-bottom: 1rem;}
 .warning-box {border-left: 5px solid #ffb000; padding: .8rem 1rem; background: rgba(255,176,0,.08); border-radius: 10px;}
 .success-box {border-left: 5px solid #1aaf5d; padding: .8rem 1rem; background: rgba(26,175,93,.08); border-radius: 10px;}
@@ -346,7 +346,7 @@ st.caption(f"Période couverte : {kpis['debut']} → {kpis['fin']}")
 # Tabs
 # -----------------------------------------------------------------------------
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     "📊 Vue globale",
     "🔥 Pics détectés",
     "🤖 Agent 1 — Diagnostic",
@@ -357,7 +357,6 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
     "🔗 Orchestration Top 1",
     "💬 Agent 6 — Chatbot",
     "📦 Exports",
-    "🎤 Pitch jury",
 ])
 
 with tab1:
@@ -744,16 +743,19 @@ with tab9:
             "Quelles sont les limites de notre analyse ?",
         ]
         for i, qq in enumerate(quick_questions):
-            if qcols[i % 3].button(qq, key=f"agent6_quick_{i}"):
-                st.session_state["agent6_pending_question"] = qq
+            # if qcols[i % 3].button(qq, key=f"agent6_quick_{i}"):
+            #     st.session_state["agent6_pending_question"] = qq
+            with qcols[i % 3]:
+                # st.code crée un encart grisé avec une icône de copie native
+                st.code(qq, language="plaintext")
 
     if "agent6_history" not in st.session_state:
         st.session_state["agent6_history"] = []
 
-    default_q = st.session_state.pop("agent6_pending_question", "")
+    # default_q = st.session_state.pop("agent6_pending_question", "")
     question = st.text_area(
         "Ta question à l'Agent 6",
-        value=default_q,
+        value="",
         placeholder="Exemple : Explique-moi pourquoi l'angle argent public est dangereux pour le CNC.",
         height=90,
     )
@@ -866,30 +868,3 @@ with tab10:
         mime="text/csv",
     )
 
-with tab11:
-    st.subheader("Démo orale prête pour l'animateur / jury")
-    st.markdown(
-        """
-        ### Phrase d'ouverture
-        > Nous n'avons pas construit un simple dashboard. Nous avons construit une mini War Room IA : elle observe la crise, cartographie les narratifs, mesure la propagation, propose une stratégie, rédige des messages et répond aux questions grâce à un chatbot branché sur les sorties des agents.
-
-        ### Démo recommandée
-        1. Importer `data.xlsx`.
-        2. Montrer les KPIs globaux : messages, retweets, reach, sentiment négatif.
-        3. Ouvrir **Agent 1** : sélectionner le pic principal ou le 26–27 mars.
-        4. Ouvrir **Agent 2** : montrer le narratif prioritaire et la matrice de risque.
-        5. Ouvrir **Agent 3** : montrer le score de coordination prudente et rappeler que ce n'est pas une accusation de bots.
-        6. Ouvrir **Agent 4** : montrer la stratégie 0–24h.
-        7. Ouvrir **Agent 5** : montrer le post X, le communiqué, la FAQ et le garde-fou.
-        8. Ouvrir **Agent 6** : poser une question libre, par exemple « Que doit-on faire maintenant ? ».
-        9. Finir par **Orchestration Top 1**.
-
-        ### Phrase forte
-        > Nos calculs sont faits par Python pour éviter l'hallucination. Le LLM est optionnel : il sert seulement à reformuler les sorties vérifiées en langage professionnel. La décision reste humaine.
-
-        ### Limites assumées
-        - Les narratifs par mots-clés sont interprétables mais peuvent être affinés par LLM ou embeddings.
-        - Les signaux de coordination ne prouvent pas des bots ; ils indiquent des patterns à vérifier.
-        - L'outil assiste la cellule de crise, il ne publie pas automatiquement.
-        """
-    )
