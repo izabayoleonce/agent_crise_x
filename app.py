@@ -249,7 +249,99 @@ def build_strategy_safe(strategist, result, **kwargs):
             return strategist.build_strategy(result, **kwargs)
         raise
 
+@st.fragment
+def interface_chatbot_agent6(agent6_context, use_openrouter, openrouter_model):
+    """Ce fragment gère le chat sans recharger toute l'application."""
+    
+    with st.expander("Questions rapides (Copiez-collez la question de votre choix)", expanded=True):
+        qcols = st.columns(3)
+        quick_questions = [
+            "Pourquoi le pic principal est-il important ?",
+            "Quels narratifs dominent et lesquels sont les plus risqués ?",
+            "Y a-t-il des signaux de coordination ou de copier-coller ?",
+            "Quelle stratégie de réponse recommandes-tu ?",
+            "Rédige un post X prudent pour le CNC.",
+            "Quelles sont les limites de notre analyse ?",
+        ]
+        for i, qq in enumerate(quick_questions):
+            with qcols[i % 3]:
+                st.code(qq, language="plaintext")
 
+    if "agent6_history" not in st.session_state:
+        st.session_state["agent6_history"] = []
+
+    question = st.text_area(
+        "Ta question à l'Agent 6",
+        value="",
+        placeholder="Exemple : Explique-moi pourquoi l'angle argent public est dangereux pour le CNC.",
+        height=90,
+    )
+
+    col_send, col_clear = st.columns([1, 1])
+    ask = col_send.button("💬 Poser la question", type="primary")
+    clear = col_clear.button("🧹 Vider la conversation")
+    
+    if clear:
+        st.session_state["agent6_history"] = []
+        st.rerun()
+
+    # Traitement de la question
+    if ask and question.strip():
+        bot = AgentChatbotCrise()
+        mode = "déterministe"
+        try:
+            if use_openrouter:
+                api_key = get_api_key()
+                with st.spinner("Agent 6 interroge OpenRouter..."):
+                    answer = generate_openrouter_agent6_answer(
+                        question,
+                        agent6_context,
+                        api_key=api_key,
+                        model=openrouter_model,
+                    )
+                mode = "OpenRouter"
+                sources = ["Agents 1 à 5 via contexte JSON"]
+            else:
+                pack = bot.answer_deterministic(question, agent6_context)
+                answer = pack["answer"]
+                sources = pack.get("sources", [])
+        except Exception as e:
+            st.warning(f"Erreur LLM. Réponse déterministe utilisée. Détail : {e}")
+            pack = bot.answer_deterministic(question, agent6_context)
+            answer = pack["answer"]
+            sources = pack.get("sources", [])
+            mode = "déterministe fallback"
+
+        st.session_state["agent6_history"].append({
+            "question": question.strip(),
+            "answer": answer,
+            "mode": mode,
+            "sources": sources,
+        })
+
+    # Affichage de l'historique
+    st.markdown("### Conversation")
+    if not st.session_state["agent6_history"]:
+        st.caption("Aucune question posée pour l'instant.")
+    
+    for i, turn in enumerate(st.session_state["agent6_history"], start=1):
+        with st.chat_message("user"):
+            st.markdown(turn["question"])
+        with st.chat_message("assistant"):
+            st.caption(f"Mode : {turn.get('mode', 'n/a')} | Sources : {', '.join(turn.get('sources', []))}")
+            st.markdown(turn["answer"])
+
+    # Bouton de téléchargement
+    if st.session_state["agent6_history"]:
+        conv_md = "\n\n".join(
+            [f"## Question {i}\n{t['question']}\n\n### Réponse\n{t['answer']}" for i, t in enumerate(st.session_state["agent6_history"], start=1)]
+        )
+        st.download_button(
+            "⬇️ Télécharger la conversation Agent 6 (.md)",
+            data=conv_md.encode("utf-8"),
+            file_name="conversation_agent6_chatbot.md",
+            mime="text/markdown",
+        )
 # -----------------------------------------------------------------------------
 # Sidebar
 # -----------------------------------------------------------------------------
@@ -443,7 +535,17 @@ with tab3:
     score_col, brief_col = st.columns([0.35, 0.65])
     with score_col:
         st.plotly_chart(plot_score(score), use_container_width=True)
-        st.success(f"Niveau : {crisis_level(score)}")
+        # st.success(f"Niveau : {crisis_level(score)}")
+        # On récupère le texte du niveau
+        niveau_texte = crisis_level(score)
+        
+        # Changement de couleur dynamique selon le score (ou le mot-clé)
+        if score < 40 or "faible" in niveau_texte.lower():
+            st.success(f"Niveau : {niveau_texte}")  # Boîte verte
+        elif score < 70 or "moyen" in niveau_texte.lower() or "modéré" in niveau_texte.lower():
+            st.warning(f"Niveau : {niveau_texte}")  # Boîte orange/jaune
+        else:
+            st.error(f"Niveau : {niveau_texte}")    # Boîte rouge
     with brief_col:
         st.markdown(result["brief_deterministe"])
 
@@ -699,6 +801,7 @@ with tab9:
         "la stratégie ou les messages. L'Agent 6 répond en priorité avec les sorties des Agents 1 à 5."
     )
 
+    # 1. Récupération des données (Ceci s'exécute au premier chargement)
     result = ensure_active_result(agent, peaks_d, top_n)
     agent2_report = ensure_agent2(result, top_n)
     agent3_report = ensure_agent3(result, top_n)
@@ -716,6 +819,7 @@ with tab9:
         st.session_state["agent5_drafts"] = AgentRedacteurGardeFou().generate_pack(result, strategy)
     draft_pack = st.session_state["agent5_drafts"]
 
+    # Construction du contexte envoyé au LLM
     agent6_context = build_agent6_context(
         result,
         agent2_report=agent2_report,
@@ -724,6 +828,7 @@ with tab9:
         draft_pack=draft_pack,
     )
 
+    # Affichage des métriques de l'onglet
     c1, c2, c3 = st.columns(3)
     with c1:
         st.metric("Base prioritaire", "Agents 1 à 5")
@@ -732,95 +837,9 @@ with tab9:
     with c3:
         st.metric("Validation", "Humaine obligatoire")
 
-    with st.expander("Questions rapides", expanded=True):
-        qcols = st.columns(3)
-        quick_questions = [
-            "Pourquoi le pic principal est-il important ?",
-            "Quels narratifs dominent et lesquels sont les plus risqués ?",
-            "Y a-t-il des signaux de coordination ou de copier-coller ?",
-            "Quelle stratégie de réponse recommandes-tu ?",
-            "Rédige un post X prudent pour le CNC.",
-            "Quelles sont les limites de notre analyse ?",
-        ]
-        for i, qq in enumerate(quick_questions):
-            # if qcols[i % 3].button(qq, key=f"agent6_quick_{i}"):
-            #     st.session_state["agent6_pending_question"] = qq
-            with qcols[i % 3]:
-                # st.code crée un encart grisé avec une icône de copie native
-                st.code(qq, language="plaintext")
-
-    if "agent6_history" not in st.session_state:
-        st.session_state["agent6_history"] = []
-
-    # default_q = st.session_state.pop("agent6_pending_question", "")
-    question = st.text_area(
-        "Ta question à l'Agent 6",
-        value="",
-        placeholder="Exemple : Explique-moi pourquoi l'angle argent public est dangereux pour le CNC.",
-        height=90,
-    )
-
-    col_send, col_clear = st.columns([1, 1])
-    ask = col_send.button("💬 Poser la question", type="primary")
-    clear = col_clear.button("🧹 Vider la conversation")
-    if clear:
-        st.session_state["agent6_history"] = []
-        st.rerun()
-
-    if ask and question.strip():
-        bot = AgentChatbotCrise()
-        mode = "déterministe"
-        try:
-            if use_openrouter:
-                api_key = get_api_key()
-                with st.spinner("Agent 6 interroge OpenRouter à partir des résultats Agents 1 à 5..."):
-                    answer = generate_openrouter_agent6_answer(
-                        question,
-                        agent6_context,
-                        api_key=api_key,
-                        model=openrouter_model,
-                    )
-                mode = "OpenRouter"
-                sources = ["Agents 1 à 5 via contexte JSON"]
-            else:
-                pack = bot.answer_deterministic(question, agent6_context)
-                answer = pack["answer"]
-                sources = pack.get("sources", [])
-        except Exception as e:
-            st.warning(f"OpenRouter indisponible ou erreur LLM. Réponse déterministe utilisée. Détail : {e}")
-            pack = bot.answer_deterministic(question, agent6_context)
-            answer = pack["answer"]
-            sources = pack.get("sources", [])
-            mode = "déterministe fallback"
-
-        st.session_state["agent6_history"].append({
-            "question": question.strip(),
-            "answer": answer,
-            "mode": mode,
-            "sources": sources,
-        })
-
-    st.markdown("### Conversation")
-    if not st.session_state["agent6_history"]:
-        st.caption("Aucune question posée pour l'instant.")
-    for i, turn in enumerate(st.session_state["agent6_history"], start=1):
-        with st.chat_message("user"):
-            st.markdown(turn["question"])
-        with st.chat_message("assistant"):
-            st.caption(f"Mode : {turn.get('mode', 'n/a')} | Sources : {', '.join(turn.get('sources', []))}")
-            st.markdown(turn["answer"])
-
-    if st.session_state["agent6_history"]:
-        conv_md = "\n\n".join(
-            [f"## Question {i}\n{t['question']}\n\n### Réponse\n{t['answer']}" for i, t in enumerate(st.session_state["agent6_history"], start=1)]
-        )
-        st.download_button(
-            "⬇️ Télécharger la conversation Agent 6 (.md)",
-            data=conv_md.encode("utf-8"),
-            file_name="conversation_agent6_chatbot.md",
-            mime="text/markdown",
-        )
-
+    # 2. Appel du fragment interactif
+    interface_chatbot_agent6(agent6_context, use_openrouter, openrouter_model)
+    
 with tab10:
     st.subheader("Exports prêts pour slides / GitHub / Jour 3")
     result = ensure_active_result(agent, peaks_d, top_n)
